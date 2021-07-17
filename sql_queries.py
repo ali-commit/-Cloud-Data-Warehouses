@@ -1,3 +1,4 @@
+
 import configparser
 
 
@@ -10,19 +11,19 @@ SONG_DATA = config.get("S3", "SONG_DATA")
 ROLE_ARN = config.get("IAM_ROLE","ARN")
 # DROP TABLES
 
-staging_events_table_drop = "DROP TABLE IF NOT EXISTS staging_events"
-staging_songs_table_drop = "DROP TABLE IF NOT EXISTS staging_songs"
-songplay_table_drop = "DROP TABLE IF NOT EXISTS songplay"
-user_table_drop = "DROP TABLE IF NOT user"
-song_table_drop = "DROP TABLE IF NOT EXISTS song"
-artist_table_drop = "DROP TABLE IF NOT EXISTS artist"
-time_table_drop = "DROP TABLE IF NOT EXISTS TIME"
+staging_events_table_drop = "DROP TABLE IF  EXISTS staging_events"
+staging_songs_table_drop = "DROP TABLE IF  EXISTS staging_songs"
+songplay_table_drop = "DROP TABLE IF  EXISTS songplay"
+user_table_drop = "DROP TABLE IF EXISTS user"
+song_table_drop = "DROP TABLE IF EXISTS song"
+artist_table_drop = "DROP TABLE IF  EXISTS artist"
+time_table_drop = "DROP TABLE IF  EXISTS TIME"
 
 # CREATE TABLES
-
+# here is dump table staging_events
 staging_events_table_create= ("""
 CREATE TABLE staging_events(
-    artist VARCHAR(max) sortkey distkey,
+    artist VARCHAR(max) ,
     auth VARCHAR(max),
     firstName VARCHAR(250),
     gender VARCHAR(250),
@@ -42,10 +43,10 @@ CREATE TABLE staging_events(
     userId VARCHAR(max)
 );
 """)
-
+# here is tump table staging_songs
 staging_songs_table_create = ("""
 CREATE TABLE staging_songs(
-    num_songs INT4 sortkey distkey,
+    num_songs INT4 ,
     artist_id VARCHAR(max),
     artist_latitude NUMERIC,
     artist_longitude NUMERIC,
@@ -59,15 +60,16 @@ CREATE TABLE staging_songs(
 """)
 
 
-songplay_table_create =(""" CREATE TABLE IF NOT EXISTS songplay( songplay_id TEXT PRIMARY KEY  distkey, start_time TIME, user_id TEXT, level TEXT, song_id TEXT , artist_id TEXT, session_id TEXT , location TEXT , user_agent TEXT ) """)
+songplay_table_create =(""" CREATE TABLE IF NOT EXISTS songplay( songplay_id TEXT PRIMARY KEY  distkey, start_time TIME, user_id TEXT, level TEXT, song_id TEXT , artist_id TEXT, session_id TEXT , location TEXT , user_agent TEXT )
+sortkey(songplay_id, start_time); """)
 
-user_table_create = ("""CREATE TABLE IF NOT EXISTS user( user_id INTEGER PRIMARY key  distkey, first_name text , last_name text , gender text , level text )""")
+user_table_create = ("""CREATE TABLE IF NOT EXISTS user( user_id INTEGER PRIMARY key  distkey, first_name text , last_name text , gender text , level text )sortkey(user_id, level)""")
 
-song_table_create = ("""CREATE TABLE IF NOT EXISTS song( song_id text PRIMARY key distkey , title text , artist_id text, YEAR INTEGER , duration text )""")
+song_table_create = ("""CREATE TABLE IF NOT EXISTS song( song_id text PRIMARY key distkey , title text , artist_id text, YEAR INTEGER , duration text )sortkey(song_id, artist_id)""")
 
-artist_table_create = ("""CREATE TABLE IF NOT EXISTS artist ( artist_id text PRIMARY key distkey, name text, location text , lattitude text, longitude text ) """)
+artist_table_create = ("""CREATE TABLE IF NOT EXISTS artist ( artist_id text PRIMARY key distkey, name text, location text , lattitude text, longitude text )sortkey(artist_id, name) """)
 
-time_table_create = ("""CREATE TABLE IF NOT EXISTS TIME ( start_time text PRIMARY key distkey, HOUR text , DAY text , week text , MONTH text, YEAR INTEGER , weekday text ) """)
+time_table_create = ("""CREATE TABLE IF NOT EXISTS TIME ( start_time text PRIMARY key distkey, HOUR text , DAY text , week text , MONTH text, YEAR INTEGER , weekday text )sortkey(start_time, weekday) """)
 
 
 staging_events_copy = ("""copy staging_events 
@@ -99,37 +101,36 @@ VALUES
 user_table_insert = (""" 
 INSERT INTO
     user( user_id, first_name , last_name , gender , level )
-VALUES
-    (
-         %s, %s, %s, %s,% s
-    )
-    """)
+    SELECT DISTINCT userId, firstName , lastName , gender , level
+    from staging_events
+    where page='NextSong'
+""")
 
 song_table_insert = ("""
 INSERT INTO
     song( song_id , title , artist_id , YEAR , duration ) 
-VALUES
-    (
-        % s, % s, % s, % s, % s
-    )
+    SELECT DISTINCT ( song_id , title , artist_id , year , duration)
+    from staging_songs
+    
+
     """)
 artist_table_insert = (""" 
 INSERT INTO
     artist ( artist_id , name , location , lattitude , longitude ) 
-VALUES
-    (
-        % s, % s, % s, % s, % s
-    )
+    SELECT DISTINCT artist_id , artist_name , artist_location , artist_latitude , artist_longitude 
+    from staging_songs
+                 
     """)
 
 time_table_insert = (""" 
 INSERT INTO
     TIME ( start_time , HOUR , DAY , week , MONTH , YEAR , weekday ) 
-VALUES
-    (
-        % s, % s, % s, % s, % s, % s, % s 
-    )
+    SELECT DISTINCT ts,EXTRACT(HOUR ts),EXTRACT(DAY ts),EXTRACT(week ts),EXTRACT(MONTH ts),EXTRACT(YEAR ts),EXTRACT(YEAR ts),
+    EXTRACT(dow ts)
+    from staging_events
+    where page='NextSong'
     """)
+#SELECT EXTRACT(YEAR FROM start_time);
 
 # QUERY LISTS
 
